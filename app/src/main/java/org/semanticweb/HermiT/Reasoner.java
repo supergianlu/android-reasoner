@@ -1011,7 +1011,7 @@ public class Reasoner implements OWLReasoner {
 		}
 	}
 
-	protected boolean isSubClassOf(OWLClassExpression subClassExpression,
+	public boolean isSubClassOf(OWLClassExpression subClassExpression,
 			OWLClassExpression superClassExpression) {
 		checkPreConditions(subClassExpression, superClassExpression);
 		if (!isConsistent() || subClassExpression.isOWLNothing()
@@ -1390,7 +1390,7 @@ public class Reasoner implements OWLReasoner {
 				.getBottomNode());
 	}
 
-	protected boolean isSubObjectPropertyExpressionOf(
+	public boolean isSubObjectPropertyExpressionOf(
 			OWLObjectPropertyExpression subObjectPropertyExpression,
 			OWLObjectPropertyExpression superObjectPropertyExpression) {
 		checkPreConditions(subObjectPropertyExpression,

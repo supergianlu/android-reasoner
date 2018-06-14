@@ -5,8 +5,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.net.Uri;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -30,37 +28,29 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.io.OWLOntologyCreationIOException;
 import org.semanticweb.owlapi.io.OWLOntologyInputSourceException;
 import org.semanticweb.owlapi.model.IRI;
-import org.semanticweb.owlapi.model.OWLAnnotationProperty;
 import org.semanticweb.owlapi.model.OWLClass;
-import org.semanticweb.owlapi.model.OWLDataProperty;
-import org.semanticweb.owlapi.model.OWLNamedIndividual;
 import org.semanticweb.owlapi.model.OWLObjectProperty;
 import org.semanticweb.owlapi.model.OWLOntology;
-import org.semanticweb.owlapi.model.OWLOntologyCreationException;
 import org.semanticweb.owlapi.model.OWLOntologyManager;
-import org.semanticweb.owlapi.reasoner.Node;
-import org.semanticweb.owlapi.reasoner.NodeSet;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.net.URISyntaxException;
-import java.net.UnknownHostException;
-import java.security.Permission;
 import java.util.Set;
+
+import static android.provider.AlarmClock.EXTRA_MESSAGE;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String MY_PREFS_NAME = "my_prefs";
-    private static final int HERMIT = 0;
-    private static final int PELLET = 1;
+    public static final int HERMIT = 0;
+    public static final int PELLET = 1;
     private String[] arraySpinner = new String[] {"Hermit", "Pellet"};
     private static final int PICKFILE_RESULT_CODE = 123;
     private TextView textView;
     private EditText editText;
     private int elementSelected;
     private ProgressBar progressBar;
-    private Button consistencyButton;
-    private Button classesButton;
+    private Button consistencyButton, classesButton, propButton;
+    private static ReasonerComputing reasonerComputing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
         editText = findViewById(R.id.editText);
         progressBar = findViewById(R.id.progressBar);
 
-        final Button button = findViewById(R.id.button);
+        final Button button = findViewById(R.id.buttonDevice);
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -107,9 +97,7 @@ public class MainActivity extends AppCompatActivity {
 
         });
 
-        consistencyButton = findViewById(R.id.button2);
-        classesButton = findViewById(R.id.button3);
-
+        consistencyButton = findViewById(R.id.buttonConsistency);
         consistencyButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -148,81 +136,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        classesButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                dismissKeyboard();
-                new Thread(){
-                    public void run(){
-                        OWLOntology ontology = getOntology();
-                        if(ontology != null){
-                            Reasoner hermitReasoner = null;
-                            PelletReasoner pelletReasoner = null;
-                            if (elementSelected == HERMIT) {
-                                    hermitReasoner = new Reasoner(ontology);
-                            } else if (elementSelected == PELLET) {
-                                pelletReasoner = new PelletReasonerFactory().createReasoner(ontology);
-                            }
+        classesButton = findViewById(R.id.buttonClasses);
+        classesButton.setOnClickListener(View -> {
+            prepareReasonerComputing("classi");
+        });
 
-                            //get all individuals of a specific class using reasoner
-                        /*for (OWLClass c : ontology.getClassesInSignature()) {
-                            if (c.getIRI().getFragment().equals("Capricciosa")){
-                                NodeSet<OWLNamedIndividual> instances;
-                                if(pelletReasoner != null) {
-                                    instances = pelletReasoner.getInstances(c, false);
-                                }else {
-                                    instances = hermitReasoner.getInstances(c, false);
-                                }
-                                System.out.println(c.getIRI().getFragment());
-                                for (OWLNamedIndividual i : instances.getFlattened()) {
-                                    System.out.println(i.getIRI().getFragment());
-                                }
-                            }
-                        }*/
-
-                            textView.post(new Runnable() {
-                                public void run() {
-                                    textView.setText("");
-                                }
-                            });
-                            //get all classes from ontology
-                            Set<OWLClass> classes = ontology.getClassesInSignature();
-                            for (final OWLClass class_ : classes) {
-                                //NodeSet<OWLClass> ciao = hermitReasoner.getSuperClasses(class_, false);
-                                textView.post(new Runnable() {
-                                    public void run() {
-                                        textView.setText(textView.getText() + class_.getIRI().getFragment() + "\n");
-                                    }
-                                });
-                            }
-
-                            //get all property from ontology
-                            Set<OWLObjectProperty> ciao3 = ontology.getObjectPropertiesInSignature();
-
-
-                            Node<OWLClass> ciao5 = hermitReasoner.getUnsatisfiableClasses();
-
-
-                        } else {
-                            textView.post(new Runnable() {
-                                public void run() {
-                                    textView.setText("Il file non corrisponde ad un'ontologia");
-                                }
-                            });
-                        }
-
-
-
-
-                        restoreGui();
-                    }
-                }.start();
-            }
+        propButton = findViewById(R.id.buttonProp);
+        propButton.setOnClickListener(View -> {
+            prepareReasonerComputing("proprietà");
         });
 
         ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 0);
-
-
     }
 
     @Override
@@ -292,5 +216,41 @@ public class MainActivity extends AppCompatActivity {
         if (null != this.getCurrentFocus())
             imm.hideSoftInputFromWindow(this.getCurrentFocus()
                     .getApplicationWindowToken(), 0);
+    }
+
+    private void prepareReasonerComputing(String s) {
+        Thread t = new Thread(){
+            @Override
+            public void run() {
+                super.run();
+                OWLOntology ontology = getOntology();
+                if(ontology != null){
+                    reasonerComputing = null;
+                    if (elementSelected == HERMIT) {
+                        reasonerComputing = new ReasonerComputing(HERMIT,ontology);
+                    } else if (elementSelected == PELLET) {
+                        reasonerComputing = new ReasonerComputing(PELLET,ontology);
+                    }
+                }
+                startNextActivity(s);
+            }
+        };
+        t.start();
+    }
+
+    private void startNextActivity(String s) {
+        Intent intent = new Intent(this, ResultActivity.class);
+        intent.putExtra("TYPE",s);
+        startActivity(intent);
+    }
+
+    public static ReasonerComputing getReasonerComputing() {
+        return reasonerComputing;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        progressBar.setVisibility(View.GONE);
     }
 }
